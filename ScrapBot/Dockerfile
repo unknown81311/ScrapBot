@@ -3,7 +3,7 @@ WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0-preview AS build
 WORKDIR /src
-COPY ["ScrapBot/ScrapBot.csproj", "ScrapBot/"]
+COPY ["ScrapBot.csproj", "ScrapBot/"]
 RUN dotnet restore "ScrapBot/ScrapBot.csproj"
 COPY . .
 WORKDIR "/src/ScrapBot"
