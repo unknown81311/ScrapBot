@@ -159,8 +159,8 @@ public class Service : IHostedService {
     private async void OnPICSChanges(SteamApps.PICSChangesCallback callback) {
         if (callback.LastChangeNumber == callback.CurrentChangeNumber) return;
         if (callback.CurrentChangeNumber > _lastChangeNumber) _lastChangeNumber = callback.CurrentChangeNumber;
-        var apps = callback.AppChanges.Where(app => Apps.ContainsKey(app.Value.ID)).ToList();
-        if (apps.Count <= 0) return;
+        var apps = callback.AppChanges.Where(app => Apps.ContainsKey(app.Value.ID)).ToArray();
+        if (apps.Length <= 0) return;
         foreach (var (_,app) in apps) {
             Apps.TryGetValue(app.ID, out var appName);
             var content =
