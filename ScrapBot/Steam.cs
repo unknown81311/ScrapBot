@@ -42,6 +42,8 @@ public class Service : IHostedService {
     private bool _isStopping;
     private int _reconnectAttempts;
 
+    private readonly HttpClient _httpClient = new();
+
     public Service(ILogger<Service> logger, IOptions<Options> options) {
         _logger = logger;
         _options = options.Value;
@@ -163,8 +165,8 @@ public class Service : IHostedService {
             Apps.TryGetValue(app.ID, out var appName);
             var content =
                 $"{{\"content\":\"New Steam PICS Change for App `{appName} ({app.ID})` | https://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}\"}}";
-            await new HttpClient()
-                .PostAsync(_options.WebhookUri, new StringContent(content, MediaTypeHeaderValue.Parse("application/json")));
+            var res = await _httpClient.PostAsync(_options.WebhookUri, new StringContent(content, MediaTypeHeaderValue.Parse("application/json")));
+            res.Dispose();
         }
         
 #if PICS_PRODUCT_INFO
