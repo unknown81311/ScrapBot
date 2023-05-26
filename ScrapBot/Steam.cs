@@ -132,12 +132,12 @@ public class Service : IHostedService {
         _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _logger.LogInformation("Disconnected");
         if (_isStopping) return;
-
         var seconds = (int)Math.Min(Math.Pow(2, _reconnectAttempts) * 15, _options.MaxReconnectDelaySeconds);
         var attempts = " (Attempt " + (_reconnectAttempts + 1) + ")";
         _logger.LogInformation("Reconnecting in " + seconds + " Second" + (seconds == 1 ? "" : "s") + attempts);
         await Task.Delay(TimeSpan.FromSeconds(seconds));
         _logger.LogInformation("Reconnecting" + attempts);
+        _reconnectAttempts += 1;
         _steamClient.Connect();
     }
 
