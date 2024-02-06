@@ -190,7 +190,7 @@ public class Service : IHostedService
                 {
                     case "discord":
                         {
-                            var content = $"{{\"content\":\"New SteamDB change detected! \n`{appName} ({app.ID})`  \nhttps://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}\"}}";
+                            var content = $"{{\"content\":\"New SteamDB change detected! `{appName} ({app.ID})`  \nhttps://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}\"}}";
                             var res = await _httpClient.PostAsync(webhook.token, new StringContent(content, MediaTypeHeaderValue.Parse("application/json")));
 
                             res.Dispose();
