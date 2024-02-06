@@ -15,4 +15,5 @@ RUN dotnet publish "ScrapBot.csproj" -c Release -o /app/publish /p:UseAppHost=fa
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY webhooks.json /app/webhooks.json
 ENTRYPOINT ["dotnet", "ScrapBot.dll"]

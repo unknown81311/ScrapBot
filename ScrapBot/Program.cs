@@ -1,16 +1,31 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.Text.Json;
 
 namespace ScrapBot;
 
-internal static class Program {
-    internal static async Task Main(string[] args) {
+internal static class Program
+{
+    internal static async Task Main(string[] args)
+    {
+        var webhookFile = (new StreamReader("./webhooks.json")).ReadToEnd();
+        var webhooks = JsonSerializer.Deserialize<List<Webhook>>(webhookFile);
+
+        if (webhooks == null)
+        {
+            Console.WriteLine("Couldn't find webhooks.json");
+            return;
+        }
+
         var host = Host.CreateDefaultBuilder(args)
-                       .ConfigureServices((ctx, services) => {
+                       .ConfigureServices((ctx, services) =>
+                       {
                            services.AddOptions<Steam.Options>()
-                                   .Configure(options => {
+                                   .Configure(options =>
+                                   {
                                        options.MaxReconnectDelaySeconds = (int)TimeSpan.FromMinutes(4).TotalSeconds;
                                        options.PICSRefreshDelaySeconds = 2;
+                                       options.Webhooks = webhooks;
                                    })
                                    .BindConfiguration("Steam")
                                    .ValidateDataAnnotations()
@@ -23,3 +38,11 @@ internal static class Program {
         await host.RunAsync();
     }
 }
+
+public class Webhook
+{
+    public required string type { get; set; }
+    public required string token { get; set; }
+    public string? revolt_chat { get; set; }
+}
+
