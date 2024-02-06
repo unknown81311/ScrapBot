@@ -5,24 +5,27 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SteamKit2;
+using RevoltSharp;
 
 namespace ScrapBot.Steam;
 
-public class Options {
+public class Options
+{
     public string? Username { get; set; }
     public string? Password { get; set; }
     public int MaxReconnectDelaySeconds { get; set; }
     public int PICSRefreshDelaySeconds { get; set; }
-    public string WebhookUri { get; set; }
+    public required List<Webhook> Webhooks { get; set; }
 }
 
-public class Service : IHostedService {
-    private Dictionary<uint,string> Apps = new() {
+public class Service : IHostedService
+{
+    private Dictionary<uint, string> Apps = new() {
         {387990, "Scrap Mechanic"},
         {588870, "Scrap Mechanic Mod Tool"}
     };
 
-    
+
     private readonly ILogger<Service> _logger;
     private readonly Options _options;
 
@@ -44,7 +47,8 @@ public class Service : IHostedService {
 
     private readonly HttpClient _httpClient = new();
 
-    public Service(ILogger<Service> logger, IOptions<Options> options) {
+    public Service(ILogger<Service> logger, IOptions<Options> options)
+    {
         _logger = logger;
         _options = options.Value;
 
@@ -69,19 +73,24 @@ public class Service : IHostedService {
         _callbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChanges);
     }
 
-    private void CheckAnon() {
+    private void CheckAnon()
+    {
         _isAnon = _options.Username is null || _options.Password is null;
     }
 
-    private void TimerCallback(object? _) {
+    private void TimerCallback(object? _)
+    {
         _steamApps.PICSGetChangesSince(_lastChangeNumber, true, true);
     }
 
-    public Task StartAsync(CancellationToken cancellationToken) {
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
         _logger.LogInformation("Starting");
 
-        var callbackTask = new Task(() => {
-            while (!cancellationToken.IsCancellationRequested) {
+        var callbackTask = new Task(() =>
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
                 _callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(5));
             }
         }, cancellationToken, TaskCreationOptions.LongRunning);
@@ -97,7 +106,8 @@ public class Service : IHostedService {
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) {
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
         _logger.LogInformation("Stopping");
 
         _isStopping = true;
@@ -109,7 +119,8 @@ public class Service : IHostedService {
         return Task.CompletedTask;
     }
 
-    private void OnClientConnected(SteamClient.ConnectedCallback callback) {
+    private void OnClientConnected(SteamClient.ConnectedCallback callback)
+    {
         _reconnectAttempts = 0;
         _logger.LogInformation("Client {}", _isFirstConnection ? "Connected" : "Reconnected");
         _isFirstConnection = false;
@@ -118,17 +129,22 @@ public class Service : IHostedService {
 
         _logger.LogInformation("Logging On{}", _isAnon ? " Anonymously" : string.Empty);
 
-        if (_isAnon) {
+        if (_isAnon)
+        {
             _steamUser.LogOnAnonymous();
-        } else {
-            _steamUser.LogOn(new SteamUser.LogOnDetails {
+        }
+        else
+        {
+            _steamUser.LogOn(new SteamUser.LogOnDetails
+            {
                 Username = _options.Username,
                 Password = _options.Password
             });
         }
     }
 
-    private async void OnClientDisconnected(SteamClient.DisconnectedCallback callback) {
+    private async void OnClientDisconnected(SteamClient.DisconnectedCallback callback)
+    {
         _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _logger.LogInformation("Disconnected");
         if (_isStopping) return;
@@ -141,8 +157,10 @@ public class Service : IHostedService {
         _steamClient.Connect();
     }
 
-    private void OnUserLoggedOn(SteamUser.LoggedOnCallback callback) {
-        if (callback.Result != EResult.OK) {
+    private void OnUserLoggedOn(SteamUser.LoggedOnCallback callback)
+    {
+        if (callback.Result != EResult.OK)
+        {
             _logger.LogError($"Log On Failed: EResult.{callback.Result:G}({callback.Result:D})");
             return;
         }
@@ -152,23 +170,60 @@ public class Service : IHostedService {
         _timer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(_options.PICSRefreshDelaySeconds));
     }
 
-    private void OnUserLoggedOff(SteamUser.LoggedOffCallback callback) {
+    private void OnUserLoggedOff(SteamUser.LoggedOffCallback callback)
+    {
         _logger.LogInformation("Logged Off");
     }
 
-    private async void OnPICSChanges(SteamApps.PICSChangesCallback callback) {
+    private async void OnPICSChanges(SteamApps.PICSChangesCallback callback)
+    {
         if (callback.LastChangeNumber == callback.CurrentChangeNumber) return;
         if (callback.CurrentChangeNumber > _lastChangeNumber) _lastChangeNumber = callback.CurrentChangeNumber;
         var apps = callback.AppChanges.Where(app => Apps.ContainsKey(app.Value.ID)).ToArray();
         if (apps.Length <= 0) return;
-        foreach (var (_,app) in apps) {
+        foreach (var (_, app) in apps)
+        {
             Apps.TryGetValue(app.ID, out var appName);
-            var content =
-                $"{{\"content\":\"New Steam PICS Change for App `{appName} ({app.ID})` | https://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}\"}}";
-            var res = await _httpClient.PostAsync(_options.WebhookUri, new StringContent(content, MediaTypeHeaderValue.Parse("application/json")));
-            res.Dispose();
+            foreach (var webhook in _options.Webhooks)
+            {
+                switch (webhook.type)
+                {
+                    case "discord":
+                        {
+                            var content = $"{{\"content\":\"New SteamDB change detected! `{appName} ({app.ID})`  \nhttps://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}\"}}";
+                            var res = await _httpClient.PostAsync(webhook.token, new StringContent(content, MediaTypeHeaderValue.Parse("application/json")));
+
+                            res.Dispose();
+                            break;
+                        }
+                    case "revolt":
+                        {
+                            var client = new RevoltClient(webhook.token, ClientMode.Http);
+                            await client.StartAsync();
+
+                            var content =
+                $"New Steam PICS Change for App `{appName} ({app.ID})`  \nhttps://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}";
+
+                            if (webhook.revolt_chat == null)
+                            {
+                                Console.WriteLine("No channel for revolt webhook");
+                                return;
+                            }
+
+                            var channel = await client.Rest.GetChannelAsync(webhook.revolt_chat);
+                            if (channel == null)
+                            {
+                                Console.WriteLine("Channel for revolt not found");
+                                return;
+                            }
+                            await channel.SendMessageAsync(content);
+                            break;
+                        }
+                }
+            }
+
         }
-        
+
 #if PICS_PRODUCT_INFO
         var productInfo = await _steamApps.PICSGetProductInfo(callback.AppChanges.Select(app => 
                                                                   new SteamApps.PICSRequest(app.Value.ID)), 
