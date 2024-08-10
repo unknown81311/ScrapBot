@@ -191,7 +191,7 @@ public class Service : IHostedService
                 {
                     case "discord":
                         {
-                            var content = $"New SteamDB change detected! `{appName} ({app.ID})`  \nhttps://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}\"";
+                            var content = $"New SteamDB change detected! `{appName} ({app.ID})`  \nhttps://steamdb.info/app/{app.ID}/history/?changeid={app.ChangeNumber}";
                             using StringContent jsonContent = new(
                                 JsonSerializer.Serialize(new
                                 {
